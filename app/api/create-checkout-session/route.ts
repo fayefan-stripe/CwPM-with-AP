@@ -15,14 +15,14 @@ const PAYMENT_CONFIG: Record<string, {
     surchargeLabel: 'Card Payment Surcharge (1.5%)',
     paymentMethodTypes: ['card'],
     // Block Amex so only Visa/MC/etc. can be used
-    brandsBlocked: ['amex'],
+    brandsBlocked: ['american_express'],
   },
   card_amex: {
     rate: 0.021,
     surchargeLabel: 'American Express Surcharge (2.1%)',
     paymentMethodTypes: ['card'],
     // Block everything except Amex
-    brandsBlocked: ['visa', 'mastercard'],
+    brandsBlocked: ['visa', 'mastercard', 'discover_global_network'],
   },
   au_becs_debit: {
     rate: 0,
@@ -34,7 +34,7 @@ const PAYMENT_CONFIG: Record<string, {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { studentId, studentName, term, course, amount, paymentMethod } = body
+    const { studentId, studentName, studentEmail, term, course, amount, paymentMethod } = body
 
     const config = PAYMENT_CONFIG[paymentMethod]
     if (!config) {
@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
           ],
         },
       },
+      customer_email: studentEmail,
       payment_method_types: config.paymentMethodTypes,
       billing_address_collection: 'required',
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,

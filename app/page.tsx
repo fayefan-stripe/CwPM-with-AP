@@ -15,6 +15,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [selectedCourse, setSelectedCourse] = useState<number>(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('card_standard')
+  const [studentName, setStudentName] = useState('Emily Johnson')
+  const [studentEmail, setStudentEmail] = useState('emily.johnson@email.com')
+  const [studentId, setStudentId] = useState('STU-12345')
 
   const courses = [
     {
@@ -56,8 +59,9 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentId: 'STU-12345',
-          studentName: 'Emily Johnson',
+          studentId: studentId || 'N/A',
+          studentName: studentName,
+          studentEmail: studentEmail,
           term: selected.term,
           course: selected.name,
           amount: selected.amount,
@@ -109,7 +113,7 @@ export default function Home() {
         {/* Welcome Section */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-contour-dark tracking-tight">
-            Welcome back, Emily
+            Student Payment Portal
           </h1>
           <p className="text-contour-gray mt-1">
             Complete your enrollment for Term 1, 2026
@@ -263,22 +267,36 @@ export default function Home() {
               <h2 className="text-sm font-semibold text-contour-gray uppercase tracking-wider mb-4">
                 Student Details
               </h2>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-                <div>
-                  <p className="text-xs text-contour-gray mb-0.5">Full Name</p>
-                  <p className="font-medium text-contour-dark">Emily Johnson</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-xs font-medium text-contour-gray mb-1.5 block">Full Name *</label>
+                  <input
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="e.g. Emily Johnson"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-contour-dark placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-contour-blue/20 focus:border-contour-blue transition-all"
+                  />
                 </div>
-                <div>
-                  <p className="text-xs text-contour-gray mb-0.5">Student ID</p>
-                  <p className="font-medium text-contour-dark">STU-12345</p>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-xs font-medium text-contour-gray mb-1.5 block">Email *</label>
+                  <input
+                    type="email"
+                    value={studentEmail}
+                    onChange={(e) => setStudentEmail(e.target.value)}
+                    placeholder="e.g. emily@example.com"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-contour-dark placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-contour-blue/20 focus:border-contour-blue transition-all"
+                  />
                 </div>
-                <div>
-                  <p className="text-xs text-contour-gray mb-0.5">Email</p>
-                  <p className="font-medium text-contour-dark">emily.j@email.com</p>
-                </div>
-                <div>
-                  <p className="text-xs text-contour-gray mb-0.5">Parent/Guardian</p>
-                  <p className="font-medium text-contour-dark">Sarah Johnson</p>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-xs font-medium text-contour-gray mb-1.5 block">Student ID</label>
+                  <input
+                    type="text"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                    placeholder="e.g. STU-12345"
+                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-contour-dark placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-contour-blue/20 focus:border-contour-blue transition-all"
+                  />
                 </div>
               </div>
             </div>
@@ -333,7 +351,7 @@ export default function Home() {
 
                 <button
                   onClick={handlePayment}
-                  disabled={loading}
+                  disabled={loading || !studentName.trim() || !studentEmail.trim()}
                   className="w-full btn-primary py-4 rounded-xl text-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
