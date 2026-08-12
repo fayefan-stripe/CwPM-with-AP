@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Contour Education - Student Payment Portal',
-  description: 'Secure payment portal for Contour Education students',
+  title: 'ParagonCare Direct - Online Ordering Portal',
+  description: 'Secure online ordering portal for ParagonCare customers',
 }
 
 export default function RootLayout({

@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
         enabled: true,
         invoice_data: {
           description: `${course} - ${term} Class Fees`,
-          footer: 'Thank you for choosing Contour Education. Surcharge applied per payment method selected.',
+          footer: 'Thank you for choosing ParagonCare Direct. Surcharge applied per payment method selected.',
           metadata: {
             student_id: studentId,
             student_name: studentName,
