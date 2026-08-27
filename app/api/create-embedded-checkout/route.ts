@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         price_data: {
           unit_amount: surchargeAmount,
           currency: 'aud',
-          product_data: { name: surchargeLabel || 'Payment Surcharge' },
+          product_data: { name: surchargeLabel || 'Application Fee' },
         },
         quantity: 1,
       })

@@ -4,22 +4,18 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import { loadStripe } from '@stripe/stripe-js'
 
-type PaymentMethodType = 'card_standard' | 'card_amex' | 'bank_transfer' | 'overseas_bank' | 'intrsf' | null
+type PaymentMethodType = 'cards' | 'bank_transfer' | null
 
 const PAYMENT_OPTIONS: { value: PaymentMethodType; label: string }[] = [
-  { value: 'card_standard', label: 'Credit Card - Visa/Master' },
+  { value: 'cards', label: 'Cards' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'overseas_bank', label: 'Overseas Bank Transfer' },
-  { value: 'card_amex', label: 'Credit Card - AMEX' },
-  { value: 'intrsf', label: 'INTRSF' },
 ]
 
-const SURCHARGE_CONFIG: Record<string, { rate: number; label: string }> = {
-  card_standard: { rate: 0.015, label: 'Visa, Mastercard Surcharge' },
-  card_amex: { rate: 0.021, label: 'American Express Surcharge' },
-  bank_transfer: { rate: 0, label: '' },
-  overseas_bank: { rate: 0, label: '' },
-  intrsf: { rate: 0, label: '' },
+const APPLICATION_FEE_AMOUNT = 500 // $5.00 AUD flat fee for card payments
+
+const APPLICATION_FEE_CONFIG: Record<string, { amount: number; label: string }> = {
+  cards: { amount: APPLICATION_FEE_AMOUNT, label: 'Application Fee' },
+  bank_transfer: { amount: 0, label: '' },
 }
 
 const STEPS = [
@@ -53,9 +49,9 @@ export default function ImaginePage() {
   const currencyElementRef = useRef<HTMLDivElement>(null)
   const prevPaymentMethod = useRef<PaymentMethodType>(null)
 
-  const surcharge = paymentMethod ? SURCHARGE_CONFIG[paymentMethod] : null
-  const surchargeAmount = surcharge ? Math.round(COURSE_AMOUNT * surcharge.rate) : 0
-  const totalAmount = COURSE_AMOUNT + surchargeAmount
+  const applicationFee = paymentMethod ? APPLICATION_FEE_CONFIG[paymentMethod] : null
+  const applicationFeeAmount = applicationFee?.amount ?? 0
+  const totalAmount = COURSE_AMOUNT + applicationFeeAmount
 
   const formatCurrency = (cents: number) =>
     new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(cents / 100)
@@ -70,8 +66,7 @@ export default function ImaginePage() {
     setErrorMessage('')
 
     try {
-      const config = SURCHARGE_CONFIG[method]
-      const surchAmt = Math.round(COURSE_AMOUNT * config.rate)
+      const config = APPLICATION_FEE_CONFIG[method]
 
       const res = await fetch('/api/create-embedded-checkout', {
         method: 'POST',
@@ -79,7 +74,7 @@ export default function ImaginePage() {
         body: JSON.stringify({
           amount: COURSE_AMOUNT,
           courseName: 'IELTS Class',
-          surchargeAmount: surchAmt,
+          surchargeAmount: config.amount,
           surchargeLabel: config.label || undefined,
         }),
       })
@@ -417,21 +412,21 @@ export default function ImaginePage() {
                           <p className="font-semibold text-paragon-dark">{formatCurrency(COURSE_AMOUNT)}</p>
                         </div>
 
-                        {surchargeAmount > 0 ? (
+                        {applicationFeeAmount > 0 ? (
                           <div className="flex justify-between items-start bg-amber-50 -mx-2 px-2 py-2 rounded-lg">
                             <div>
                               <p className="font-medium text-paragon-dark text-sm">
-                                {surcharge?.label}
+                                {applicationFee?.label}
                               </p>
                               <p className="text-xs text-paragon-gray">
-                                {((surcharge?.rate || 0) * 100).toFixed(1)}% of order total
+                                Application Fee
                               </p>
                             </div>
-                            <p className="font-semibold text-amber-700">{formatCurrency(surchargeAmount)}</p>
+                            <p className="font-semibold text-amber-700">{formatCurrency(applicationFeeAmount)}</p>
                           </div>
                         ) : (
                           <div className="flex justify-between items-start bg-emerald-50 -mx-2 px-2 py-2 rounded-lg">
-                            <p className="font-medium text-emerald-700 text-sm">No surcharge applied</p>
+                            <p className="font-medium text-emerald-700 text-sm">No application fee applied</p>
                             <p className="font-semibold text-emerald-700">{formatCurrency(0)}</p>
                           </div>
                         )}
@@ -442,14 +437,14 @@ export default function ImaginePage() {
                           <p className="font-semibold text-paragon-dark">Total</p>
                           <p className="text-2xl font-bold text-paragon-dark">{formatCurrency(totalAmount)}</p>
                         </div>
-                        <p className="text-xs text-paragon-gray mt-1 text-right">AUD incl. GST + surcharge</p>
+                        <p className="text-xs text-paragon-gray mt-1 text-right">AUD incl. GST + application fee</p>
                       </div>
                     </div>
 
                     <div className="mt-5 px-4 py-3 bg-cyan-50/50 border border-cyan-100 rounded-lg">
                       <p className="text-xs text-paragon-gray leading-relaxed">
-                        A surcharge applies based on your selected payment method.
-                        An invoice will be generated after payment with the surcharge shown as a separate line item.
+                        A $5 AUD application fee applies when paying by card.
+                        An invoice will be generated after payment with the application fee shown as a separate line item.
                       </p>
                     </div>
                   </div>
