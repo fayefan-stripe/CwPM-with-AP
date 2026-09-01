@@ -12,6 +12,7 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 
 export default function EventsBookingPage() {
   const [bookingFor, setBookingFor] = useState('myself')
+  const [email, setEmail] = useState('fayefan@stripe.com')
   const [checkoutLoading, setCheckoutLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -20,76 +21,128 @@ export default function EventsBookingPage() {
   const actionsRef = useRef<any>(null)
   const paymentElementRef = useRef<HTMLDivElement>(null)
   const currencyElementRef = useRef<HTMLDivElement>(null)
+  const paymentElementInstanceRef = useRef<any>(null)
+  const currencyElementInstanceRef = useRef<any>(null)
+  const currencyMountedRef = useRef(false)
+  const initGenerationRef = useRef(0)
 
   const formatCurrency = (cents: number) =>
     new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(cents / 100)
 
-  const initCheckout = useCallback(async () => {
-    setCheckoutLoading(true)
-    setErrorMessage('')
-
-    try {
-      const res = await fetch('/api/create-embedded-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: DEPOSIT_AMOUNT,
-          courseName: 'Booking Deposit — 6-Night Flight Package ex Melbourne',
-          returnPath: '/success',
-        }),
-      })
-
-      const data = await res.json()
-      if (data.error) {
-        setErrorMessage(data.error)
-        setCheckoutLoading(false)
-        return
-      }
-
-      const stripe = await stripePromise
-      if (!stripe) {
-        setErrorMessage('Failed to load Stripe')
-        setCheckoutLoading(false)
-        return
-      }
-
-      if (paymentElementRef.current) paymentElementRef.current.innerHTML = ''
-      if (currencyElementRef.current) currencyElementRef.current.innerHTML = ''
-
-      const checkout = (stripe as any).initCheckoutElementsSdk({
-        clientSecret: data.clientSecret,
-        adaptivePricing: { allowed: true },
-      })
-      checkoutRef.current = checkout
-
-      const loadResult = await checkout.loadActions()
-      if (loadResult.type !== 'success') {
-        setErrorMessage(loadResult.error?.message || 'Failed to load checkout actions')
-        setCheckoutLoading(false)
-        return
-      }
-      actionsRef.current = loadResult.actions
-
-      const paymentElement = checkout.createPaymentElement()
-      if (paymentElementRef.current) {
-        paymentElement.mount(paymentElementRef.current)
-      }
-
-      const currencyElement = checkout.createCurrencySelectorElement()
-      if (currencyElementRef.current) {
-        currencyElement.mount(currencyElementRef.current)
-      }
-
-      setCheckoutLoading(false)
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Something went wrong')
-      setCheckoutLoading(false)
-    }
+  const destroyMountedElements = useCallback(() => {
+    paymentElementInstanceRef.current?.destroy?.()
+    currencyElementInstanceRef.current?.destroy?.()
+    paymentElementInstanceRef.current = null
+    currencyElementInstanceRef.current = null
+    currencyMountedRef.current = false
+    checkoutRef.current = null
+    actionsRef.current = null
+    if (paymentElementRef.current) paymentElementRef.current.replaceChildren()
+    if (currencyElementRef.current) currencyElementRef.current.replaceChildren()
   }, [])
 
   useEffect(() => {
-    initCheckout()
-  }, [initCheckout])
+    const initGeneration = ++initGenerationRef.current
+    let cancelled = false
+
+    // Mount the Currency Selector above the Payment Element (Stripe best practice).
+    // Guarded so it only mounts once, whether triggered on load or by a session change.
+    const mountCurrencySelector = (checkout: any) => {
+      if (currencyMountedRef.current) return
+      try {
+        const currencyElement = checkout.createCurrencySelectorElement()
+        if (currencyElementRef.current) {
+          currencyElement.mount(currencyElementRef.current)
+          currencyElementInstanceRef.current = currencyElement
+          currencyMountedRef.current = true
+        }
+      } catch (e) {
+        console.warn('Currency selector not available:', e)
+      }
+    }
+
+    async function initCheckout() {
+      setCheckoutLoading(true)
+      setErrorMessage('')
+      destroyMountedElements()
+
+      try {
+        const res = await fetch('/api/create-embedded-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: DEPOSIT_AMOUNT,
+            courseName: 'Booking Deposit — 6-Night Flight Package ex Melbourne',
+            customerEmail: email,
+            returnPath: '/success',
+          }),
+        })
+
+        const data = await res.json()
+        if (cancelled || initGeneration !== initGenerationRef.current) return
+        if (data.error) {
+          setErrorMessage(data.error)
+          setCheckoutLoading(false)
+          return
+        }
+
+        const stripe = await stripePromise
+        if (cancelled || initGeneration !== initGenerationRef.current) return
+        if (!stripe) {
+          setErrorMessage('Failed to load Stripe')
+          setCheckoutLoading(false)
+          return
+        }
+
+        const checkout = (stripe as any).initCheckoutElementsSdk({
+          clientSecret: data.clientSecret,
+          adaptivePricing: { allowed: true },
+        })
+        checkoutRef.current = checkout
+
+        // Adaptive Pricing may resolve the presentment currency asynchronously.
+        // Mount the selector as soon as currencyOptions become available.
+        checkout.on?.('change', (session: any) => {
+          if (initGeneration !== initGenerationRef.current) return
+          if (session?.currencyOptions?.length) {
+            mountCurrencySelector(checkout)
+          }
+        })
+
+        const loadResult = await checkout.loadActions()
+        if (cancelled || initGeneration !== initGenerationRef.current) return
+        if (loadResult.type !== 'success') {
+          setErrorMessage(loadResult.error?.message || 'Failed to load checkout actions')
+          setCheckoutLoading(false)
+          return
+        }
+        actionsRef.current = loadResult.actions
+
+        mountCurrencySelector(checkout)
+
+        const paymentElement = checkout.createPaymentElement()
+        if (paymentElementRef.current) {
+          paymentElement.mount(paymentElementRef.current)
+          paymentElementInstanceRef.current = paymentElement
+        }
+
+        if (cancelled || initGeneration !== initGenerationRef.current) return
+        setCheckoutLoading(false)
+      } catch (err: any) {
+        if (cancelled) return
+        setErrorMessage(err.message || 'Something went wrong')
+        setCheckoutLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(initCheckout, 300)
+
+    return () => {
+      cancelled = true
+      clearTimeout(debounce)
+      destroyMountedElements()
+    }
+  }, [email, destroyMountedElements])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -198,7 +251,7 @@ export default function EventsBookingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="First name" required defaultValue="Faye" />
                 <FormField label="Last name" required defaultValue="Fan" />
-                <FormField label="Email" required defaultValue="fayefan@stripe.com" />
+                <FormField label="Email" required type="email" value={email} onChange={setEmail} />
                 <FormField label="Phone" required defaultValue="0400000000" />
               </div>
             </div>
@@ -235,7 +288,7 @@ export default function EventsBookingPage() {
                   )}
 
                   <form onSubmit={handleSubmit}>
-                    <div ref={currencyElementRef} className="mb-4" />
+                    <div ref={currencyElementRef} className="mb-4 min-h-[44px]" />
                     <div ref={paymentElementRef} className="min-h-[200px]" />
 
                     {errorMessage && (
@@ -370,11 +423,21 @@ function FormField({
   label,
   required,
   defaultValue,
+  value,
+  onChange,
+  type = 'text',
 }: {
   label: string
   required?: boolean
   defaultValue?: string
+  value?: string
+  onChange?: (value: string) => void
+  type?: string
 }) {
+  const controlled = onChange
+    ? { value, onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value) }
+    : { defaultValue }
+
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -382,8 +445,8 @@ function FormField({
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       <input
-        type="text"
-        defaultValue={defaultValue}
+        type={type}
+        {...controlled}
         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:border-transparent"
       />
     </div>

@@ -68,7 +68,7 @@ export default function ImaginePage() {
     try {
       const config = APPLICATION_FEE_CONFIG[method]
 
-      const res = await fetch('/api/create-embedded-checkout', {
+      const res = await fetch('/api/imagine-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -76,6 +76,7 @@ export default function ImaginePage() {
           courseName: 'IELTS Class',
           surchargeAmount: config.amount,
           surchargeLabel: config.label || undefined,
+          paymentMethod: method,
         }),
       })
 
